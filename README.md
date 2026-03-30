@@ -1,5 +1,3 @@
-# Firebase Studio
+# ClueGuess Trivia
 
-This is a NextJS starter in Firebase Studio.
-
-To get started, take a look at src/app/page.tsx.
+Dont ask me about this code i think its fully AI generated.
