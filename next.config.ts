@@ -1,6 +1,8 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  output: "export",
+  assetPrefix: "/clueguess-trivia",
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
