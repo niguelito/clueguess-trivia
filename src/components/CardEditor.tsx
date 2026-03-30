@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import { addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, HelpCircle, Save, X } from 'lucide-react';
+import { Plus, Trash2, Save, X } from 'lucide-react';
 
 interface CardEditorProps {
   deckId: string;
@@ -35,19 +35,22 @@ export default function CardEditor({ deckId, deckName }: CardEditorProps) {
   const handleAddCard = () => {
     if (!db || !user || !newCard.mainClue.trim() || !newCard.answer.trim()) return;
     
+    // Create a specific document reference with a pre-generated ID
     const colRef = collection(db, 'users', user.uid, 'decks', deckId, 'triviaCards');
     const cardId = doc(colRef).id;
+    const cardRef = doc(db, 'users', user.uid, 'decks', deckId, 'triviaCards', cardId);
     
-    addDocumentNonBlocking(colRef, {
+    // Use setDocumentNonBlocking to ensure the document ID matches the 'id' field in the data
+    setDocumentNonBlocking(cardRef, {
       id: cardId,
       deckId,
       ownerId: user.uid,
       mainClue: newCard.mainClue,
       additionalClues: newCard.additionalClues.filter(c => c.trim() !== ''),
       answer: newCard.answer,
-      categoryId: "General", // Default
+      categoryId: "General",
       createdAt: serverTimestamp()
-    });
+    }, { merge: false });
     
     setNewCard({ mainClue: '', additionalClues: ['', ''], answer: '' });
     setIsAdding(false);

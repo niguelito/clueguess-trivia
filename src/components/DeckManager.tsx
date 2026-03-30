@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Edit3, Save, X, BookOpen, Layers } from 'lucide-react';
+import { Plus, Trash2, Edit3, X, BookOpen, Layers } from 'lucide-react';
 import CardEditor from '@/components/CardEditor';
 
 export default function DeckManager() {
@@ -27,15 +27,21 @@ export default function DeckManager() {
 
   const handleCreateDeck = () => {
     if (!db || !user || !newDeck.name.trim()) return;
+    
+    // Create a specific document reference with a pre-generated ID
     const colRef = collection(db, 'users', user.uid, 'decks');
     const deckId = doc(colRef).id;
-    addDocumentNonBlocking(colRef, {
+    const deckRef = doc(db, 'users', user.uid, 'decks', deckId);
+    
+    // Use setDocumentNonBlocking to ensure the document ID matches the 'id' field in the data
+    setDocumentNonBlocking(deckRef, {
       id: deckId,
       name: newDeck.name,
       description: newDeck.description,
       createdAt: serverTimestamp(),
       ownerId: user.uid
-    });
+    }, { merge: false });
+    
     setNewDeck({ name: '', description: '' });
     setIsCreating(false);
   };
