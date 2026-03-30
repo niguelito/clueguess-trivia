@@ -1,0 +1,162 @@
+{
+  "entities": {
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a thematic category for trivia cards, allowing for organization and filtering of trivia content within decks.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Category entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the trivia category (e.g., \"History\", \"Science\", \"Pop Culture\")."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Deck": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Deck",
+      "type": "object",
+      "description": "Represents a custom collection of trivia cards created by the user, replacing AI-generated content.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Deck entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user-defined name for the trivia deck (e.g., \"My Favorite History Questions\", \"80s Movies Trivia\")."
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional description providing more context about the deck's content or theme."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "TriviaCard": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TriviaCard",
+      "type": "object",
+      "description": "Represents a single trivia question with an initial clue, optional progressive clues, and the correct answer, belonging to a specific deck and category.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the TriviaCard entity."
+        },
+        "mainClue": {
+          "type": "string",
+          "description": "The primary, initial clue displayed on the front of the trivia card."
+        },
+        "additionalClues": {
+          "type": "array",
+          "description": "An array of up to 5 progressive clues that can be revealed one by one to assist in guessing the answer.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "answer": {
+          "type": "string",
+          "description": "The correct answer to the trivia question associated with the clues."
+        },
+        "deckId": {
+          "type": "string",
+          "description": "Reference to the Deck this trivia card belongs to. (Relationship: Deck 1:N TriviaCard)"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category this trivia card belongs to, for organizational purposes. (Relationship: Category 1:N TriviaCard)"
+        }
+      },
+      "required": [
+        "id",
+        "mainClue",
+        "additionalClues",
+        "answer",
+        "deckId",
+        "categoryId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores predefined, global trivia categories. These categories are publicly readable by all users and serve as a lookup for organizing trivia cards. No user-specific authorization is required for these documents.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "The unique identifier for a trivia category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/decks/{deckId}",
+        "definition": {
+          "entityName": "Deck",
+          "schema": {
+            "$ref": "#/backend/entities/Deck"
+          },
+          "description": "Stores custom trivia decks created and owned by individual users. The `ownerId` (matching `{userId}` from the path) should be included within each Deck document to explicitly state ownership for robust rules and queryability, reinforcing path-based authorization. Only the `{userId}` who created the deck can read, create, update, or delete it.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns this deck."
+            },
+            {
+              "name": "deckId",
+              "description": "The unique identifier for the custom deck."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/decks/{deckId}/triviaCards/{triviaCardId}",
+        "definition": {
+          "entityName": "TriviaCard",
+          "schema": {
+            "$ref": "#/backend/entities/TriviaCard"
+          },
+          "description": "Stores individual trivia cards belonging to a specific user's custom deck. The `ownerId` (matching `{userId}` from the path) and `deckId` (matching `{deckId}` from the path) should be denormalized into each TriviaCard document. This achieves Authorization Independence, allowing card-level access checks without needing to query parent documents, thereby supporting robust security rules and efficient Query-Accessible Patterns (QAPs). Only the `{userId}` who owns the parent deck can read, create, update, or delete these cards.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the parent deck and this trivia card."
+            },
+            {
+              "name": "deckId",
+              "description": "The unique identifier for the parent custom deck to which this trivia card belongs."
+            },
+            {
+              "name": "triviaCardId",
+              "description": "The unique identifier for the trivia card."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure is designed to be highly secure, scalable, and debuggable, adhering strictly to the core design principles and strategy mandates. \n\n**Authorization Independence (CRITICAL):** This structure achieves Authorization Independence by explicitly denormalizing authorization context into the documents themselves. For `Deck` entities, the `ownerId` (matching the `{userId}` in the path) is stored within the `Deck` document. For `TriviaCard` entities, both the `ownerId` (matching the `{userId}` in the path) and the `deckId` (matching the `{deckId}` in the path) are denormalized and stored directly within each `TriviaCard` document. This eliminates the need for expensive and complex `get()` calls in Firestore security rules to check parent documents for ownership. Rules can evaluate access solely based on `request.auth.uid` matching the `userId` in the path and the `ownerId` field in the document, ensuring atomic operations and simplified rule logic.\n\n**Clarity of Intent (Debuggability):** The use of explicit `ownerId` and `deckId` fields within documents, combined with descriptive hierarchical paths (`/users/{userId}/decks/{deckId}/triviaCards/{triviaCardId}`), makes the authorization intent immediately clear. Security rules become straightforward, directly comparing `request.auth.uid` with the `ownerId` field and path parameters, which greatly aids debugging.\n\n**DBAC (No Custom Claims):** Roles are not used in this context, as all user-generated data (`Deck`s and `TriviaCard`s) is private and owned by the creator. Authorization relies solely on `request.auth.uid` and document fields, eliminating the need for custom claims.\n\n**QAPs (Rules are not Filters):** The structure inherently supports Query-Accessible Patterns (QAPs) for secure `list` operations. \n*   For user-owned `Decks`, a query like `db.collection(\"users\").doc(request.auth.uid).collection(\"decks\")` will automatically return only the decks owned by the authenticated user, as the `userId` is part of the collection path. \n*   Similarly, for `TriviaCard`s, `db.collection(\"users\").doc(request.auth.uid).collection(\"decks\").doc(deckId).collection(\"triviaCards\")` will only return cards for the specified deck owned by the authenticated user. \nThis means no additional filtering logic is required in security rules, as the data retrieval pattern itself enforces authorization, making rules simple and preventing over-fetching.\n\n**Invariants:** The structure supports invariants by ensuring that ownership (`ownerId`) and relationships (`deckId`, `categoryId`) are explicitly maintained and denormalized where necessary, reinforcing data integrity and allowing rules to validate these relationships during writes.\n\n**Structural Segregation:** Data is segregated into global categories (`/categories`) for publicly readable reference data and user-specific data (`/users/{userId}/decks`, `/users/{userId}/decks/{deckId}/triviaCards`) for private content, each with a homogeneous security posture. This reduces complexity in security rules."
+  }
+}
